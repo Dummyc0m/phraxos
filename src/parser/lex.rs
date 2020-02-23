@@ -38,6 +38,8 @@ pub enum TokenType<'a> {
     Let,
     In,
     Int,
+
+    Eof,
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -345,11 +347,13 @@ impl <'a> Lexer<'a> {
         })
     }
 
+    // trampoline style
     fn run(&mut self) {
         let mut next = Some(LexerState(Lexer::tokenize));
         while let Some(LexerState(n)) = next {
             next = n(self)
         }
+        self.emit(TokenType::Eof)
     }
 
     fn is_newline(c: char) -> bool {
