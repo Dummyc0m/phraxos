@@ -1,0 +1,26 @@
+// line comment
+/*
+block comment
+*/
+
+let let in end
+= = = =
+1 / 2
+1 % 5
+=
+-> - -> 
+----
+++++
+let
+  int x = 5
+  int m = 10
+in
+  \_ -> x + m
+
+____hi__
+_hi
+_
+
+漢語
+
+unicode test = σ ς

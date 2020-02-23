@@ -1,7 +1,10 @@
+use crate::parser::lex::LexerError;
+
 #[derive(Debug)]
-enum Error {
+pub enum Error {
     IOError(std::io::Error),
-    TypeError
+    TypeError,
+    LexerError(LexerError)
 }
 
 impl From<std::io::Error> for Error {

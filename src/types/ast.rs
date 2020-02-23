@@ -1,5 +1,5 @@
 #[derive(Debug, Eq, PartialEq)]
-enum BinOp {
+pub enum BinOp {
     Plus,
     Minus,
     Times,
@@ -8,18 +8,18 @@ enum BinOp {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-enum Tycon {
+pub enum Tycon {
     // Type
     Arrow(Box<Tycon>, Box<Tycon>),
     Int
 }
 
 #[derive(Debug, Eq, PartialEq)]
-enum AbtNode {
+pub enum AbtNode {
     Var(String),
     Int(i32),
 
-    Lam(String, Type, Box<AbtNode>),
+    Lam(String, Tycon, Box<AbtNode>),
     Ap(Box<AbtNode>, Box<AbtNode>),
 
     Let(String, Box<AbtNode>, Box<AbtNode>),
