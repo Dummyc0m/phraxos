@@ -1,0 +1,4 @@
+infix 5 6 &&
+
+let x = let y = 5 && 6 in let y = 7 && 8 in type a = nat in y ++ x
+in

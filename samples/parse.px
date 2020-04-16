@@ -1,0 +1,9 @@
+let + = \a : int. \b : int. extern
+infix 5 6 +
+infix 5 6 -
+
+infix 7 8 *
+infix 7 8 /
+
+let x = 5 + 5
+let y = let x = 5 in 3

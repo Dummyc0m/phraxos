@@ -1,27 +1,35 @@
-#[derive(Debug, Eq, PartialEq)]
-pub enum BinOp {
-    Plus,
-    Minus,
-    Times,
-    Div,
-    Mod,
-}
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
+pub struct Ident(pub String);
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Tycon {
     // Type
     Arrow(Box<Tycon>, Box<Tycon>),
-    Int
+    Ident(Ident),
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum AbtNode {
-    Var(String),
-    Int(i32),
-
-    Lam(String, Tycon, Box<AbtNode>),
-    Ap(Box<AbtNode>, Box<AbtNode>),
-
-    Let(String, Box<AbtNode>, Box<AbtNode>),
-    BinOp(Box<AbtNode>, BinOp, Box<AbtNode>),
+pub enum Decl {
+    Vbind(Ident, Expr),
+    Fbind(Ident, Vec<Ident>, Expr),
+    Infix(u8, u8, Ident),
+    Type(Ident, Tycon)
 }
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum Expr {
+    Extern,
+    Var(Ident),
+    Dot(Box<Expr>, Ident),
+    Number(i32),
+
+    Lam(Ident, Tycon, Box<Expr>),
+    Ap(Box<Expr>, Box<Expr>),
+
+    Let(Vec<Decl>, Box<Expr>),
+    BinOp(Box<Expr>, Ident, Box<Expr>),
+    If(Box<Expr>, Box<Expr>, Box<Expr>),
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct Prog(pub Vec<Decl>);

@@ -16,38 +16,50 @@ pub enum LexerError {
     Int(Option<ParseIntError>, TokenPos),
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub enum TokenType<'a> {
     Ident(&'a str),
     Number(i32),
 
+    Colon,
+    Arrow,
+    Backslash,
+    Underscore,
+    Dot,
+    Equal,
+
     LParen,
     RParen,
-    Equal,
-    Arrow,
-    Colon,
-    Underscore,
-    Backslash,
 
-    Plus,
-    Minus,
-    Times,
-    Div,
-    Mod,
+    Extern,
+
+    Where,
+    If,
+    Then,
+    Else,
 
     Let,
+    Type,
+    Fun,
+    Infix,
     In,
-    Int,
 
     Eof,
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub struct Token<'a>(pub TokenType<'a>, pub TokenPos);
+
+impl <'a> Token<'a> {
+    pub fn typ(&self) -> TokenType<'a> {
+        let Token (t, _) = *self;
+        t
+    }
+}
 
 pub type LexerResult<'a> = Result<Token<'a>, LexerError>;
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub struct TokenPos {
     pub line: usize,
     pub column: usize,
@@ -141,7 +153,7 @@ impl <'a> Lexer<'a> {
     fn take_while<P: Fn(char) -> bool>(&mut self, pred: P) -> Option<&'a str> {
         let mut curr = self.current()?;
         let start_pos = self.pos;
-        while pred(curr) {
+        while !curr.is_whitespace() && pred(curr) {
             self.skip();
             if let Some(c) = self.current() {
                 curr = c
@@ -151,7 +163,6 @@ impl <'a> Lexer<'a> {
         }
         if start_pos == self.pos {
             // has not advanced
-            self.err(LexerError::Empty(self.pos()));
             None
         } else {
             Some(&self.raw_str[start_pos..self.pos])
@@ -270,46 +281,75 @@ impl <'a> Lexer<'a> {
     }
 
     fn ident(&mut self) -> Option<LexerState<'a>> {
-        let ident_val = match self.take_while(|c| c.is_xid_continue()) {
+        match self.take_while(|c| c.is_xid_continue()) {
             None => {
                 self.err(LexerError::Empty(self.pos()));
                 return None
             }
-            Some(v) => v,
+            Some(v) => self.emit_ident(v),
         };
-        match ident_val {
-            // keywords
-            "let" => self.emit(TokenType::Let),
-            "in" => self.emit(TokenType::In),
-            "int" => self.emit(TokenType::Int),
-            "_" => self.emit(TokenType::Underscore),
-            _ => self.emit(TokenType::Ident(ident_val)),
-        }
         Some(LexerState(Self::tokenize))
     }
 
+    fn emit_ident(&mut self, ident_val: &'a str) {
+        match ident_val {
+            // keywords
+            "extern" => self.emit(TokenType::Extern),
+            "let" => self.emit(TokenType::Let),
+            "where" => self.emit(TokenType::Where),
+            "in" => self.emit(TokenType::In),
+            "if" => self.emit(TokenType::If),
+            "then" => self.emit(TokenType::Then),
+            "else" => self.emit(TokenType::Else),
+            "type" => self.emit(TokenType::Type),
+            "fun" => self.emit(TokenType::Fun),
+            "infix" => self.emit(TokenType::Infix),
+            "_" => self.emit(TokenType::Underscore),
+            _ => self.emit(TokenType::Ident(ident_val)),
+        }
+    }
+
+    fn op(&mut self) -> Option<LexerState<'a>> {
+        match self.take_while(|c| !c.is_control() && !Self::is_ident_start(c)) {
+            None => {
+                self.err(LexerError::Empty(self.pos()));
+                return None
+            }
+            Some(v) => self.emit_op(v),
+        };
+        Some(LexerState(Self::tokenize))
+    }
+
+    fn emit_op(&mut self, op_val: &'a str) {
+        match op_val {
+            // keywords
+            ":" => self.emit(TokenType::Colon),
+            "->" => self.emit(TokenType::Arrow),
+            "=" => self.emit(TokenType::Equal),
+            "\\" => self.emit(TokenType::Backslash),
+            "(" => self.emit(TokenType::LParen),
+            ")" => self.emit(TokenType::RParen),
+            "." => self.emit(TokenType::Dot),
+            _ => self.emit(TokenType::Ident(op_val)),
+        }
+    }
+
     fn slash(&mut self) -> Option<LexerState<'a>> {
+        // need to emit operators in case it's not a comment
+        // somewhat of a hack
+        let start_pos = self.pos;
         self.skip();
         match self.current() {
             Some('/') => Some(LexerState(Self::line_comment)),
             Some('*') => Some(LexerState(Self::block_comment)),
             _ => {
-                self.emit(TokenType::Div);
-                Some(LexerState(Self::tokenize))
-            }
-        }
-    }
-
-    fn minus(&mut self) -> Option<LexerState<'a>> {
-        self.skip();
-        match self.current() {
-            Some('>') => {
-                self.skip();
-                self.emit(TokenType::Arrow);
-                Some(LexerState(Self::tokenize))
-            }
-            _ => {
-                self.emit(TokenType::Minus);
+                self.take_while(|c| !c.is_control() && !Self::is_ident_start(c));
+                if start_pos < self.pos {
+                    self.emit_op(&self.raw_str[start_pos..self.pos]);
+                } else {
+                    self.err(LexerError::Empty(self.pos()));
+                    return None
+                }
                 Some(LexerState(Self::tokenize))
             }
         }
@@ -321,22 +361,16 @@ impl <'a> Lexer<'a> {
                 Some(LexerState(Self::skip_whitespaces))
             } else {
                 match c {
-                    '(' => self.single(TokenType::LParen),
-                    ')' => self.single(TokenType::RParen),
-                    ':' => self.single(TokenType::Colon),
-                    '=' => self.single(TokenType::Equal),
-                    '\\' => self.single(TokenType::Backslash),
-                    '/' => Some(LexerState(Self::slash)),
-                    '%' => self.single(TokenType::Mod),
-                    '*' => self.single(TokenType::Times),
-                    '+' => self.single(TokenType::Plus),
-                    '-' => Some(LexerState(Self::minus)),
                     '0' => Some(LexerState(Self::hex)),
                     '1'..='9' => Some(LexerState(Self::dec)),
 
+                    '/' => Some(LexerState(Self::slash)),
+
                     _ => {
-                        if c.is_xid_start() || c == '_' {
+                        if Self::is_ident_start(c) {
                             Some(LexerState(Self::ident))
+                        } else if !c.is_control() {
+                            Some(LexerState(Self::op))
                         } else {
                             self.err(LexerError::Match(self.pos()));
                             None
@@ -358,5 +392,9 @@ impl <'a> Lexer<'a> {
 
     fn is_newline(c: char) -> bool {
         c == '\n'
+    }
+
+    fn is_ident_start(c: char) -> bool {
+        c.is_xid_start() || c == '_'
     }
 }
